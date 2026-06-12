@@ -1,18 +1,27 @@
+import os
+import shutil
 from src.graph.workflow import create_workflow
 
 def run():
     print("Initializing Multi-Agent Workflow...")
     app = create_workflow()
     
+    workspace_dir = os.path.join(os.getcwd(), "workspace")
+    if os.path.exists(workspace_dir):
+        print("Clearing previous workspace...")
+        shutil.rmtree(workspace_dir)
+    os.makedirs(workspace_dir, exist_ok=True)
+    
     # Initial state payload
     inputs = {
-        "requirements": "Build a simple library management system with books and users.",
+        "requirements": "Build a simple library management system with books and users. Create a models.py for the database schema, an api.py for the routes, and a README.md explaining the system.",
         "tasks": [],
         "code": "",
         "review_status": "",
         "review_feedback": [],
         "review_count": 0,
-        "messages": []
+        "messages": [],
+        "agent_messages": []
     }
     
     print(f"\n--- Starting Workflow Execution ---")
@@ -39,9 +48,14 @@ def run():
         else:
             print("No issues identified by Reviewer (Approved!).")
             
-        print("\n--- Developer Output (Code) ---")
-        code = final_state.get("code", "No code generated.")
-        print(code)
+        print("\n--- Generated Files in Workspace ---")
+        for root, dirs, files in os.walk(workspace_dir):
+            for file in files:
+                rel_dir = os.path.relpath(root, workspace_dir)
+                if rel_dir == ".":
+                    print(f"- {file}")
+                else:
+                    print(f"- {os.path.join(rel_dir, file)}")
         
         print("\n--- Workflow Messages ---")
         for msg in final_state.get("messages", []):
