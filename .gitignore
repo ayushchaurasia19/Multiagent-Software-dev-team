@@ -23,3 +23,6 @@ workspace/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Test caches
+.pytest_cache/

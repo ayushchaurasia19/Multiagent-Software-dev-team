@@ -1,17 +1,22 @@
-from langchain_ollama import ChatOllama
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage
 import json
 
 def plan_task(state: dict):
+    print("\n" + "="*50)
+    print("[PLANNER AGENT] is analyzing requirements...")
+    print(f"   Requirements: {state.get('requirements', '')[:60]}...")
+    print("="*50)
     # Using the single underlying model
-    llm = ChatOllama(model="qwen2.5-coder", temperature=0)
+    llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash", temperature=0)
     
     requirements = state.get("requirements", "")
     
     system_prompt = """You are a software development Planner Agent.
 Your job is to read the requirements and break them down into an ordered list of tasks.
-Return a valid JSON object with a single key 'tasks' which contains a list of string tasks.
-Example: {"tasks": ["Design schema", "Write API"]}
+Categorize the tasks into 'backend_tasks' and 'frontend_tasks'.
+Return a valid JSON object with two keys: 'backend_tasks' and 'frontend_tasks', each containing a list of string tasks.
+Example: {"backend_tasks": ["Design schema", "Write API"], "frontend_tasks": ["Create UI component", "Connect to API"]}
 Do not wrap your response in markdown blocks."""
     
     messages = [
@@ -22,6 +27,8 @@ Do not wrap your response in markdown blocks."""
     response = llm.invoke(messages)
     
     content = ""
+    backend_tasks = []
+    frontend_tasks = []
     try:
         content_raw = response.content
         if isinstance(content_raw, list):
@@ -35,17 +42,16 @@ Do not wrap your response in markdown blocks."""
             content = content[3:-3].strip()
             
         parsed = json.loads(content)
-        tasks = parsed.get("tasks", [])
+        backend_tasks = parsed.get("backend_tasks", [])
+        frontend_tasks = parsed.get("frontend_tasks", [])
     except Exception as e:
-        tasks = [f"Failed to parse tasks. Raw content: {content}. Error: {e}"]
+        backend_tasks = [f"Failed to parse backend tasks. Raw content: {content}. Error: {e}"]
+        frontend_tasks = []
 
-    # Update state
-    if "messages" not in state:
-        state["messages"] = []
-        
     state_updates = {
-        "tasks": tasks, 
-        "messages": state["messages"] + [f"Planner created {len(tasks)} tasks."]
+        "backend_tasks": backend_tasks,
+        "frontend_tasks": frontend_tasks,
+        "messages": [f"Planner created {len(backend_tasks)} backend and {len(frontend_tasks)} frontend tasks."]
     }
     
     return state_updates

@@ -1,5 +1,7 @@
 import os
 import shutil
+from dotenv import load_dotenv
+load_dotenv()
 from src.graph.workflow import create_workflow
 
 def run():
@@ -14,14 +16,17 @@ def run():
     
     # Initial state payload
     inputs = {
-        "requirements": "Build a simple library management system with books and users. Create a models.py for the database schema, an api.py for the routes, and a README.md explaining the system.",
-        "tasks": [],
-        "code": "",
+        "requirements": "Build a simple library management web app. Create a backend API with FastAPI (api.py) and a frontend HTML file (index.html) that fetches from the API.",
+        "backend_tasks": [],
+        "frontend_tasks": [],
         "review_status": "",
         "review_feedback": [],
         "review_count": 0,
         "messages": [],
-        "agent_messages": []
+        "backend_messages": [],
+        "frontend_messages": [],
+        "backend_done": False,
+        "frontend_done": False
     }
     
     print(f"\n--- Starting Workflow Execution ---")
@@ -31,9 +36,13 @@ def run():
         # Run the compiled workflow
         final_state = app.invoke(inputs)
         
-        print("\n--- Planner Output (Tasks) ---")
-        for idx, task in enumerate(final_state.get("tasks", [])):
-            print(f"{idx+1}. {task}")
+        print("\n--- Planner Output ---")
+        print("Backend Tasks:")
+        for idx, task in enumerate(final_state.get("backend_tasks", [])):
+            print(f"  {idx+1}. {task}")
+        print("Frontend Tasks:")
+        for idx, task in enumerate(final_state.get("frontend_tasks", [])):
+            print(f"  {idx+1}. {task}")
             
         print("\n--- Reviewer Status & Feedback ---")
         status = final_state.get("review_status", "N/A")

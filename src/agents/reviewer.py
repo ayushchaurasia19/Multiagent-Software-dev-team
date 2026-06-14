@@ -1,43 +1,70 @@
-from langchain_ollama import ChatOllama
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage
 import json
 
 def review_code(state: dict):
+    print("\n" + "="*50)
+    print(" [REVIEWER AGENT] is evaluating the code...")
+    print(f"   Review cycle: {state.get('review_count', 0) + 1}")
+    print("="*50)
     # Setup LLM
-    llm = ChatOllama(model="qwen2.5-coder", temperature=0)
+    llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash", temperature=0)
     
     requirements = state.get("requirements", "")
-    tasks = state.get("tasks", [])
-    code = state.get("code", "")
+    backend_tasks = state.get("backend_tasks", [])
+    frontend_tasks = state.get("frontend_tasks", [])
+    tasks = backend_tasks + frontend_tasks
     review_count = state.get("review_count", 0)
+    
+    # Read generated files from workspace
+    import os
+    workspace_dir = os.path.join(os.getcwd(), "workspace")
+    code_contents = []
+    if os.path.exists(workspace_dir):
+        for root, _, files in os.walk(workspace_dir):
+            for file in files:
+                if file.endswith((".py", ".md", ".html", ".js", ".css", ".json")):
+                    file_path = os.path.join(root, file)
+                    try:
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            content = f.read()
+                        rel_path = os.path.relpath(file_path, workspace_dir)
+                        code_contents.append(f"--- {rel_path} ---\n{content}\n")
+                    except Exception:
+                        pass
+    code = "\n".join(code_contents)
+    if not code.strip():
+        code = "(No code files found in workspace)"
     
     task_list_str = "\n".join([f"- {t}" for t in tasks])
     
     system_prompt = """You are a software Reviewer Agent.
-Your job is to read the requirements, the tasks list, and the generated Python code, 
-and evaluate if the code is complete, correct, and matches the requirements and tasks.
+    Your job is to read the requirements, the tasks list, and the generated code, 
+    and evaluate if the code is complete, correct, and matches the requirements and tasks.
 
-Determine if the code is approved or needs revision.
-Return a valid JSON object with the following keys:
-- "status": either "approved" or "revise"
-- "feedback": a JSON array of strings containing specific issues found in the code, or an empty array if approved.
+    Determine if the code is approved or needs revision.
+    Return a valid JSON object with the following keys:
+    - "status": either "approved" or "revise"
+    - "feedback": a JSON array of strings containing specific issues found in the code, or an empty array if approved.
 
-Example response when revision is required:
-{
-  "status": "revise",
-  "feedback": [
-    "Missing database table initialization logic.",
-    "Error handling for borrow_book method is missing."
-  ]
-}
+    CRITICAL: For every feedback string, you MUST prefix it with either [BACKEND] or [FRONTEND] to indicate which agent needs to fix it.
 
-Example response when approved:
-{
-  "status": "approved",
-  "feedback": []
-}
+    Example response when revision is required:
+    {
+    "status": "revise",
+    "feedback": [
+        "[BACKEND] Missing database table initialization logic in models.py.",
+        "[FRONTEND] The submit button on index.html is missing."
+    ]
+    }
 
-Do not wrap your response in markdown blocks. Output only the raw JSON."""
+    Example response when approved:
+    {
+    "status": "approved",
+    "feedback": []
+    }
+
+    Do not wrap your response in markdown blocks. Output only the raw JSON."""
     
     messages = [
         SystemMessage(content=system_prompt),
@@ -76,7 +103,11 @@ Do not wrap your response in markdown blocks. Output only the raw JSON."""
         "review_status": status,
         "review_feedback": feedback,
         "review_count": review_count + 1,
-        "messages": state["messages"] + [f"Reviewer status: {status}. Found {len(feedback)} issues. Revision cycle: {review_count + 1}"]
+        "messages": [f"Reviewer status: {status}. Found {len(feedback)} issues. Revision cycle: {review_count + 1}"]
     }
+    
+    if status == "revise":
+        state_updates["backend_done"] = False
+        state_updates["frontend_done"] = False
     
     return state_updates
