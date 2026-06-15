@@ -25,8 +25,11 @@ def run():
         "messages": [],
         "backend_messages": [],
         "frontend_messages": [],
+        "tester_messages": [],
         "backend_done": False,
-        "frontend_done": False
+        "frontend_done": False,
+        "tester_done": False,
+        "test_report": ""
     }
     
     print(f"\n--- Starting Workflow Execution ---")
@@ -51,11 +54,15 @@ def run():
         print(f"Total Review Cycles: {count}")
         feedback = final_state.get("review_feedback", [])
         if feedback:
-            print("Issues identified by Reviewer:")
+            print("Issues identified by Reviewer/Tester:")
             for idx, issue in enumerate(feedback):
                 print(f" {idx+1}. {issue}")
         else:
-            print("No issues identified by Reviewer (Approved!).")
+            print("No issues identified by Reviewer/Tester (Approved!).")
+            
+        print("\n--- Tester Report Summary ---")
+        report = final_state.get("test_report", "No report generated.")
+        print(report)
             
         print("\n--- Generated Files in Workspace ---")
         for root, dirs, files in os.walk(workspace_dir):

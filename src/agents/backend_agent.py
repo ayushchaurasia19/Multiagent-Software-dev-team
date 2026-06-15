@@ -7,7 +7,7 @@ def write_backend_code(state: dict):
     print(" [BACKEND AGENT] is writing code...")
     print("="*50)
     
-    llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash", temperature=0.1)
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite", temperature=0.1, max_retries=10)
     llm_with_tools = llm.bind_tools([write_code_to_disk])
     
     tasks = state.get("backend_tasks", [])

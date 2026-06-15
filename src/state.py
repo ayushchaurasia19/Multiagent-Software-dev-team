@@ -16,5 +16,8 @@ class AgentState(TypedDict):
     messages: Annotated[List[str], operator.add] # for debug/logging
     backend_messages: Annotated[Sequence[BaseMessage], add_messages]
     frontend_messages: Annotated[Sequence[BaseMessage], add_messages]
+    tester_messages: Annotated[Sequence[BaseMessage], add_messages]
     backend_done: bool
     frontend_done: bool
+    tester_done: bool
+    test_report: str

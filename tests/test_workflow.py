@@ -1,9 +1,11 @@
-import pytest
+# import pytest
 from langgraph.graph import END
 from langchain_core.messages import AIMessage
 from src.graph.workflow import (
     route_from_backend, 
     route_from_frontend, 
+    route_from_tester,
+    mark_tester_done,
     route_from_join, 
     decide_next_node, 
     MAX_REVIEWS
@@ -36,10 +38,32 @@ def test_route_from_frontend_done():
     assert route_from_frontend(state) == "mark_frontend_done"
 
 def test_route_from_join():
-    assert route_from_join({"backend_done": True, "frontend_done": True}) == "reviewer"
-    assert route_from_join({"backend_done": True, "frontend_done": False}) == END
-    assert route_from_join({"backend_done": False, "frontend_done": True}) == END
-    assert route_from_join({"backend_done": False, "frontend_done": False}) == END
+    assert route_from_join({"backend_done": True, "frontend_done": True, "tester_done": True}) == "reviewer"
+    assert route_from_join({"backend_done": True, "frontend_done": True, "tester_done": False}) == END
+    assert route_from_join({"backend_done": True, "frontend_done": False, "tester_done": True}) == END
+    assert route_from_join({"backend_done": False, "frontend_done": True, "tester_done": True}) == END
+    assert route_from_join({"backend_done": False, "frontend_done": False, "tester_done": False}) == END
+
+def test_route_from_tester_to_tools():
+    tool_call_msg = AIMessage(
+        content="", 
+        tool_calls=[{"name": "write_code_to_disk", "args": {"filepath": "tests/test_api.py", "code": "pass"}, "id": "call_t"}]
+    )
+    state = {"tester_messages": [tool_call_msg]}
+    assert route_from_tester(state) == "tester_tools"
+
+def test_route_from_tester_done():
+    text_msg = AIMessage(content="Finished testing.")
+    state = {"tester_messages": [text_msg]}
+    assert route_from_tester(state) == "mark_tester_done"
+
+def test_mark_tester_done():
+    text_msg = AIMessage(content='{"issues": ["[BACKEND] Issue 1"], "summary": "Done"}')
+    state = {"tester_messages": [text_msg], "review_feedback": []}
+    res = mark_tester_done(state)
+    assert res["tester_done"] is True
+    assert res["review_feedback"] == ["[BACKEND] Issue 1"]
+    assert res["test_report"] == "Done"
 
 def test_decide_next_node_revise():
     state = {"review_status": "revise", "review_count": 1}

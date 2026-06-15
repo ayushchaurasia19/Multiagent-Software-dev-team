@@ -34,12 +34,19 @@ graph TD
     end
     
     B -->|Done| MD(Mark Backend Done)
+    MD --> T(Tester Agent)
+    
+    subgraph Testing
+        T <-->|Tool Loop| TT((Tester Tools))
+    end
+    
+    T -->|Done| MT(Mark Tester Done)
     F -->|Done| MF(Mark Frontend Done)
     
-    MD --> J{Join Node}
+    MT --> J{Join Node}
     MF --> J
     
-    J -->|Both Done| R[Reviewer]
+    J -->|All Done| R[Reviewer]
     J -->|Wait| END
     
     R -->|Revise| DR((Dispatch Revisions))
@@ -56,7 +63,7 @@ The system utilizes a central `AgentState` dictionary using LangGraph `Annotated
 - **Python 3.12+**: Core programming language.
 - **LangGraph**: Framework for orchestrating the multi-agent state machine and cyclic workflows.
 - **LangChain Core**: Standardized interfaces for messages, tools, and LLM interactions.
-- **LangChain Google GenAI**: Integration for Google's Gemini models (`gemini-3.5-flash`).
+- **LangChain Google GenAI**: Integration for Google's Gemini models (`gemini-2.5-flash-lite` with retry logic).
 - **Pytest**: Automated testing framework for unit and integration verification.
 
 ## Project Structure
@@ -71,6 +78,7 @@ The system utilizes a central `AgentState` dictionary using LangGraph `Annotated
 │   │   ├── backend_agent.py   # Backend code generation
 │   │   ├── frontend_agent.py  # Frontend code generation
 │   │   ├── planner.py         # Task decomposition
+│   │   ├── tester.py          # Automated QA and unit testing
 │   │   └── reviewer.py        # Code evaluation and feedback
 │   ├── graph/                 # LangGraph configuration
 │   │   └── workflow.py        # DAG routing and edge definitions
@@ -80,6 +88,7 @@ The system utilizes a central `AgentState` dictionary using LangGraph `Annotated
 │   └── state.py               # AgentState TypedDict definition
 ├── tests/                     # Test suite
 │   ├── test_agents.py         # Unit tests for individual agents
+│   ├── test_tester.py         # Unit tests for the Tester Agent
 │   ├── test_integration.py    # End-to-end parallel workflow tests
 │   └── test_workflow.py       # LangGraph routing logic tests
 └── workspace/                 # Target directory for generated code
@@ -152,8 +161,10 @@ pytest -v --tb=short
 2. **[BACKEND]** & **[FRONTEND]** wake up in parallel.
 3. Backend triggers `write_code_to_disk` to create `workspace/api.py`.
 4. Frontend triggers `write_code_to_disk` to create `workspace/index.html`.
-5. Both agents reach the synchronization barrier (`join_node`).
-6. **[REVIEWER]** reads the workspace. If issues are found, it outputs:
+5. Backend finishes, triggering the **[TESTER]** agent.
+6. Tester triggers `write_code_to_disk` to generate `workspace/tests/test_api.py` and `workspace/tests/test_report.md`.
+7. Tester and Frontend reach the synchronization barrier (`join_node`).
+8. **[REVIEWER]** reads the workspace and the `test_report.md`. If issues are found, it outputs:
    `"[BACKEND] Missing CORS middleware in FastAPI app."`
-7. The revision is dispatched. Because the feedback is tagged `[BACKEND]`, the frontend agent sleeps, and the backend agent automatically applies the fix.
-8. The system terminates when the Reviewer approves the code.
+9. The revision is dispatched. Because the feedback is tagged `[BACKEND]`, the frontend agent sleeps, and the backend agent automatically applies the fix.
+10. The system terminates when the Reviewer approves the code.

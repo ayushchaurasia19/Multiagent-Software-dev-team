@@ -1,3 +1,4 @@
+# pyrefly: ignore [missing-import]
 import pytest
 import os
 from langchain_core.messages import AIMessage
@@ -39,6 +40,19 @@ def test_full_pipeline_integration(mocker, tmp_path):
     front_summary_msg = AIMessage(content="Frontend done.")
     front_bound.invoke.side_effect = [front_tool_msg, front_summary_msg]
     
+    # Mock Tester LLM
+    tester_llm = mocker.patch("src.agents.tester.ChatGoogleGenerativeAI")
+    tester_bound = mocker.MagicMock()
+    tester_llm.return_value.bind_tools.return_value = tester_bound
+    
+    # Tester sequence: 1 tool call, then 1 text summary (JSON summary)
+    tester_tool_msg = AIMessage(
+        content="", 
+        tool_calls=[{"name": "write_code_to_disk", "args": {"filepath": "tests/test_backend.py", "code": "def test_back(): pass"}, "id": "call_3"}]
+    )
+    tester_summary_msg = AIMessage(content='{"status": "passed", "issues": [], "summary": "All tests passed statically"}')
+    tester_bound.invoke.side_effect = [tester_tool_msg, tester_summary_msg]
+    
     # Mock Reviewer LLM
     rev_llm = mocker.patch("src.agents.reviewer.ChatGoogleGenerativeAI")
     rev_llm.return_value.invoke.return_value = AIMessage(content='{"status": "approved", "feedback": []}')
@@ -56,8 +70,11 @@ def test_full_pipeline_integration(mocker, tmp_path):
         "messages": [],
         "backend_messages": [],
         "frontend_messages": [],
+        "tester_messages": [],
         "backend_done": False,
-        "frontend_done": False
+        "frontend_done": False,
+        "tester_done": False,
+        "test_report": ""
     }
     
     final_state = app.invoke(inputs)
@@ -66,7 +83,12 @@ def test_full_pipeline_integration(mocker, tmp_path):
     assert final_state["backend_tasks"] == ["task1"]
     assert final_state["frontend_tasks"] == ["task2"]
     assert final_state["review_status"] == "approved"
+    assert final_state["tester_done"] is True
+    assert final_state["test_report"] == "All tests passed statically"
     assert (workspace_dir / "backend.py").exists()
     assert (workspace_dir / "backend.py").read_text() == "print('hello')"
     assert (workspace_dir / "frontend.js").exists()
     assert (workspace_dir / "frontend.js").read_text() == "console.log('hello')"
+    assert (workspace_dir / "tests/test_backend.py").exists()
+    assert (workspace_dir / "tests/test_backend.py").read_text() == "def test_back(): pass"
+

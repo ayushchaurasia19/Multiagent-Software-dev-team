@@ -44,14 +44,20 @@ Here is a detailed breakdown of each attribute defined in `src/state.py`:
 > [!IMPORTANT]
 > Because the Backend and Frontend agents execute in parallel, this attribute uses a specific LangGraph reducer (`operator.add`) so that concurrent updates are safely merged without crashing.
 
-### 7. `backend_messages` & `frontend_messages` (Type: `Annotated[Sequence[BaseMessage], add_messages]`)
+### 7. `backend_messages`, `frontend_messages` & `tester_messages` (Type: `Annotated[Sequence[BaseMessage], add_messages]`)
 *   **What it is:** The actual LangChain message history (contains `SystemMessage`, `HumanMessage`, `AIMessage`, and `ToolMessage` objects), isolated by agent domain.
 *   **Who uses it:** 
-    *   **Agents & Tool Executors:** The Backend Agent only sees and appends to `backend_messages`, while the Frontend Agent only uses `frontend_messages`. This strict isolation prevents the LLMs from getting confused by each other's tool calls and context.
+    *   **Agents & Tool Executors:** Each agent (Backend, Frontend, Tester) only sees and appends to its specific message array. This strict isolation prevents the LLMs from getting confused by each other's tool calls and context.
 
-### 8. `backend_done` & `frontend_done` (Type: `bool`)
-*   **What it is:** Synchronization flags used to pause workflow execution until both parallel branches complete.
+### 8. `backend_done`, `frontend_done` & `tester_done` (Type: `bool`)
+*   **What it is:** Synchronization flags used to pause workflow execution until parallel branches or sequential testing steps complete.
 *   **Who uses it:** 
     *   **Marker Nodes:** Set to `True` when their respective agent finishes execution.
-    *   **Join Node / Router:** Checks if both are `True`. If so, it proceeds to the Reviewer.
-    *   **Reviewer Agent:** Resets both to `False` if a revision is required.
+    *   **Join Node / Router:** Checks if all required flags are `True` (e.g., waiting for Tester to finish after Backend). If so, it proceeds to the Reviewer.
+    *   **Reviewer Agent:** Resets these flags to `False` if a revision is required.
+
+### 9. `test_report` (Type: `str`)
+*   **What it is:** A text summary of the automated tests written and executed, including any bugs or missing coverage identified.
+*   **Who uses it:**
+    *   **Tester Agent:** Generates this report based on its evaluation of the codebase.
+    *   **Reviewer Agent:** Reads this report to factor automated testing results into its final evaluation and revision feedback.

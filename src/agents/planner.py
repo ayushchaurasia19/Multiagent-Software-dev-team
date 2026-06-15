@@ -8,7 +8,7 @@ def plan_task(state: dict):
     print(f"   Requirements: {state.get('requirements', '')[:60]}...")
     print("="*50)
     # Using the single underlying model
-    llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash", temperature=0)
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite", temperature=0, max_retries=10)
     
     requirements = state.get("requirements", "")
     
