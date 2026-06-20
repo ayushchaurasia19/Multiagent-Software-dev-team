@@ -19,6 +19,8 @@ __pycache__/
 library.db
 *.sqlite3
 workspace/
+frontend/node_modules/
+frontend/dist/
 
 # OS generated files
 .DS_Store
@@ -26,3 +28,5 @@ Thumbs.db
 
 # Test caches
 .pytest_cache/
+
+plan-phases.md

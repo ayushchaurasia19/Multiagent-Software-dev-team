@@ -6,8 +6,12 @@ from src.agents.frontend_agent import write_frontend_code
 from src.agents.reviewer import review_code
 from src.agents.tester import run_tester_agent
 from src.tools.file_tools import write_code_to_disk
+from src.tools.exec_tools import run_pytest_suite
 from langchain_core.messages import ToolMessage
+from langgraph.checkpoint.memory import MemorySaver
 import json
+
+memory = MemorySaver()
 
 MAX_REVIEWS = 3
 
@@ -25,15 +29,24 @@ def _execute_tools_generic(messages, label):
     print(f"   Tools called: {[call['name'] for call in last_msg.tool_calls]}")
     print("="*50)
     
+    TOOL_MAP = {
+        "write_code_to_disk": write_code_to_disk,
+        "run_pytest_suite": run_pytest_suite
+    }
+    
     for call in last_msg.tool_calls:
-        if call["name"] == "write_code_to_disk":
+        tool_name = call["name"]
+        if tool_name in TOOL_MAP:
             args = call["args"]
             try:
-                result_str = write_code_to_disk.invoke(args)
+                result_str = TOOL_MAP[tool_name].invoke(args)
             except Exception as e:
                 result_str = f"Error executing tool: {e}"
                 
-            tool_msg = ToolMessage(content=result_str, tool_call_id=call["id"], name=call["name"])
+            tool_msg = ToolMessage(content=result_str, tool_call_id=call["id"], name=tool_name)
+            tool_results.append(tool_msg)
+        else:
+            tool_msg = ToolMessage(content=f"Error: Unknown tool {tool_name}", tool_call_id=call["id"], name=tool_name)
             tool_results.append(tool_msg)
             
     return tool_results
@@ -178,6 +191,5 @@ def create_workflow():
     
     # Revision Fan-out
     workflow.add_edge("dispatch_revisions", "backend_agent")
-    workflow.add_edge("dispatch_revisions", "frontend_agent")
     
-    return workflow.compile()
+    return workflow.compile(checkpointer=memory)

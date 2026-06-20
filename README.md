@@ -63,8 +63,10 @@ The system utilizes a central `AgentState` dictionary using LangGraph `Annotated
 - **Python 3.12+**: Core programming language.
 - **LangGraph**: Framework for orchestrating the multi-agent state machine and cyclic workflows.
 - **LangChain Core**: Standardized interfaces for messages, tools, and LLM interactions.
-- **LangChain Google GenAI**: Integration for Google's Gemini models (`gemini-2.5-flash-lite` with retry logic).
+- **LangChain Groq**: Integration for Groq's fast inference models (currently utilizing `llama-3.3-70b-versatile`).
 - **Pytest**: Automated testing framework for unit and integration verification.
+- **FastAPI**: Backend server to stream LangGraph execution events and provide workspace access.
+- **React & Vite**: Modern frontend dashboard for real-time visualization of agent execution and workspace inspection.
 
 ## Project Structure
 
@@ -73,6 +75,7 @@ The system utilizes a central `AgentState` dictionary using LangGraph `Annotated
 ├── AGENTS_DOCUMENTATION.md    # Detailed documentation of agent behavior
 ├── AGENT_STATE_DOCS.md        # State schema documentation
 ├── plan-phases.md             # Project milestones and roadmap
+├── frontend/                  # React + Vite dashboard UI
 ├── src/
 │   ├── agents/                # LLM Agent definitions
 │   │   ├── backend_agent.py   # Backend code generation
@@ -84,7 +87,8 @@ The system utilizes a central `AgentState` dictionary using LangGraph `Annotated
 │   │   └── workflow.py        # DAG routing and edge definitions
 │   ├── tools/                 # Agent tools
 │   │   └── file_tools.py      # File system operations (write_code_to_disk)
-│   ├── main.py                # Application entry point
+│   ├── main.py                # Application CLI entry point
+│   ├── server.py              # FastAPI server for dashboard streaming
 │   └── state.py               # AgentState TypedDict definition
 ├── tests/                     # Test suite
 │   ├── test_agents.py         # Unit tests for individual agents
@@ -116,18 +120,35 @@ The system utilizes a central `AgentState` dictionary using LangGraph `Annotated
 
 ## Configuration and Environment Variables
 
-The system relies on Google's Gemini API for inference. You must configure your API key before running the workflow.
+The system relies on Groq's API for fast inference. You must configure your API key before running the workflow.
 
 Create a `.env` file in the root directory:
 ```env
-GOOGLE_API_KEY=your_gemini_api_key_here
+GROQ_API_KEY=your_groq_api_key_here
 ```
 
 The application uses `python-dotenv` to automatically load these variables at runtime.
 
 ## Usage Guide
 
-To execute the multi-agent workflow, simply run the main entry point:
+The project now includes a rich, real-time frontend dashboard to monitor the execution of the multi-agent system.
+
+### Running the Dashboard (Recommended)
+
+1. **Start the FastAPI backend server:**
+   ```bash
+   fastapi run src/server.py --port 8000
+   ```
+2. **Start the React frontend (in a separate terminal):**
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+3. Open your browser to the local URL provided by Vite (usually `http://localhost:5173`) to submit requirements and watch the agents work in real-time.
+
+### Running via CLI
+To execute the multi-agent workflow via the command line, simply run the main entry point:
 
 ```bash
 python src/main.py

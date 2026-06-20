@@ -1,6 +1,7 @@
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq  # type: ignore
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, BaseMessage
 from src.tools.file_tools import write_code_to_disk
+from src.tools.exec_tools import run_pytest_suite
 import os
 
 def run_tester_agent(state: dict):
@@ -8,8 +9,16 @@ def run_tester_agent(state: dict):
     print(" [TESTER AGENT] is writing tests and checking code...")
     print("="*50)
     
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite", temperature=0, max_retries=10)
-    llm_with_tools = llm.bind_tools([write_code_to_disk])
+    API_KEY = os.getenv("GROQ_API_KEY")
+
+    llm = ChatGroq(
+        model="llama-3.3-70b-versatile",
+        api_key=API_KEY,
+        temperature=0,
+        max_retries=5,
+        timeout=60,
+    )
+    llm_with_tools = llm.bind_tools([write_code_to_disk, run_pytest_suite])
     
     requirements = state.get("requirements", "")
     tasks = state.get("backend_tasks", [])
@@ -38,15 +47,17 @@ def run_tester_agent(state: dict):
     system_prompt = """You are a QA/Tester Agent. Your focus is strictly on verifying the Backend Agent's code.
     Your job is to read the requirements, backend tasks, the generated backend code, and:
     1. Write a complete pytest test suite in `tests/test_api.py` (or corresponding test files for other backend files on disk) using the `write_code_to_disk` tool. Ensure the tests cover success paths, failure paths, and edge cases.
-    2. Write a testing summary report to `tests/test_report.md` using the `write_code_to_disk` tool, describing your test coverage and any issues found.
-    3. Once all files are written, output a final JSON block summarizing your findings. The JSON must have the following keys:
+    2. Run the test suite using the `run_pytest_suite` tool. You must analyze the execution logs to verify code correctness.
+    3. Write a testing summary report to `tests/test_report.md` using the `write_code_to_disk` tool, describing your test coverage and the execution results.
+    4. Once all files are written and tests have been executed, output a final JSON block summarizing your findings. The JSON must have the following keys:
     - "status": either "passed" or "failed"
-    - "issues": a list of specific issues/bugs/missing test coverage found in the backend code, each prefixed with "[BACKEND]" (e.g., "[BACKEND] API lacks input validation on user registration"). If no issues are found, this list must be empty.
+    - "issues": a list of specific issues, bugs, tracebacks, or missing test coverage found in the backend code, each prefixed with "[BACKEND]" (e.g., "[BACKEND] Test execution failed with AssertionError on /register endpoint"). If no issues are found, this list must be empty.
     - "summary": a brief text summary of the verification.
 
     CRITICAL INSTRUCTIONS:
-    - You MUST use the `write_code_to_disk` tool to write the test files and the report BEFORE outputting the JSON.
-    - DO NOT provide the JSON summary until you have called the `write_code_to_disk` tool and received a 'File written successfully' message back.
+    - You MUST use the `write_code_to_disk` tool to write the test files BEFORE executing them.
+    - You MUST use the `run_pytest_suite` tool to run the tests and view the real runtime errors before providing the JSON summary.
+    - DO NOT provide the JSON summary until you have executed both tools and received their results.
     - Only output the final JSON block when you have completed all tool calls and written all files.
     - Do NOT wrap the final JSON block in markdown backticks (e.g. ```json) in your final text response. Just output the raw JSON string.
     - Focus strictly on the backend code verification. Do not test frontend assets.

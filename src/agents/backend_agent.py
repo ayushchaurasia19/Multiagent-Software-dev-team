@@ -1,4 +1,5 @@
-from langchain_google_genai import ChatGoogleGenerativeAI
+import os
+from langchain_groq import ChatGroq  # type: ignore
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, BaseMessage
 from src.tools.file_tools import write_code_to_disk
 
@@ -7,7 +8,15 @@ def write_backend_code(state: dict):
     print(" [BACKEND AGENT] is writing code...")
     print("="*50)
     
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite", temperature=0.1, max_retries=10)
+    API_KEY = os.getenv("GROQ_API_KEY")
+
+    llm = ChatGroq(
+        model="llama-3.3-70b-versatile",
+        api_key=API_KEY,
+        temperature=0.1,
+        max_retries=5,
+        timeout=60,
+    )
     llm_with_tools = llm.bind_tools([write_code_to_disk])
     
     tasks = state.get("backend_tasks", [])

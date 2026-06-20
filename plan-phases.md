@@ -353,151 +353,81 @@ Tester responsibilities:
 
 ---
 
-# Milestone 7: Code Execution
+# Milestone 7: Pytest Code Execution
 
 ## Goal
 
-Execute generated code instead of only reviewing it.
+Execute the generated test suites using `pytest` and feed results back to the agents for autonomous debugging.
 
 ## New Tool
 
-Execution Tool
-
-Examples:
-
-```python
-pytest
-```
-
-```python
-npm test
-```
-
-```python
-python app.py
-```
+`run_pytest_suite` (using python's `subprocess` or `pytest` library)
 
 ## Workflow
 
 ```text
-Developer
-    ↓
-Tester
-    ↓
-Execution Tool
-    ↓
-Results
-    ↓
-Tester
+Backend Agent
+     ↓
+Tester Agent (creates test suite)
+     ↓
+Pytest Execution Tool (runs tests)
+     ↓
+Results (stdout/stderr/tracebacks)
+     ↓
+Tester / Reviewer (inspects logs and decides if revision is needed)
 ```
 
-Execution results should be fed back into the workflow.
+## Key Value
 
-## Learnings
-
-- Runtime validation
-- Error-driven refinement
-- Autonomous debugging
+- Autonomous error-driven refinement.
+- Guarantees code correctness at runtime before approval.
 
 ---
 
-# Milestone 8: Project Memory
+# Milestone 8: Web UI Frontend
 
 ## Goal
 
-Prevent agents from forgetting previous decisions.
+Build a user-friendly frontend interface for the multi-agent application so users can submit requirements and visualize the team's progress.
 
-## Shared Memory Stores
+## Features
 
-- Architecture decisions
-- API contracts
-- Database schema
-- Project requirements
-- Coding standards
+- **Requirements Input:** Input area to submit software requirements.
+- **Real-Time Progress Visualizer:** Shows which agent is currently active (Planner, Backend, Frontend, Tester, Reviewer) and displays their logs.
+- **Workspace Inspector:** View generated files and folder structures directly in the UI.
+- **Test Results Panel:** View `pytest` execution logs and coverage details.
+- **Review Loop Interface:** See reviewer comments and approval status.
 
-## Example
+## Technology Stack
 
-Store:
-
-```text
-Frontend expects:
-access_token
-```
-
-Backend must continue using:
-
-```text
-access_token
-```
-
-throughout the workflow.
-
-## Learnings
-
-- Long-running workflows
-- Context persistence
-- Consistency management
+- **Backend API:** FastAPI (exposing LangGraph state and event streams).
+- **Frontend App:** Vite + React (or Vanilla HTML/JS for simplicity and high performance).
 
 ---
 
-# Milestone 9: Portfolio Version
+# Milestone 9: AWS Deployment and Hosting
 
-## Final Architecture
+## Goal
 
-```text
-User
-  ↓
-Project Manager
-  ↓
-Planner
-  ↓
-Backend Agent
-Frontend Agent
-  ↓
-Reviewer
-  ↓
-Tester
-  ↓
-Execution Tool
-  ↓
-Final Project Output
-```
+Deploy the entire system on AWS to make it accessible to external users, utilizing a fully serverless, cost-conscious architecture designed to stay within AWS Free Tier limits.
 
-## Final Features
+## Scope & Architecture
 
-- Local LLM
-- LangGraph orchestration
-- Multi-agent workflow
-- Feedback loops
-- Tool calling
-- File generation
-- Test generation
-- Code execution
-- Shared memory
-- Autonomous refinement
+- **Workflow Orchestration:** Use **AWS Step Functions** to orchestrate the multi-agent execution pipeline (replacing or wrapping the LangGraph state machine structure).
+- **Agent Logic:** Use **AWS Lambda** for running agent logic and executing code verification tools.
+- **State & Metadata Store:** Use **Amazon DynamoDB** to store workflow state history, intermediate agent outputs, logs, and execution metadata.
+- **Artifacts Storage:** Use **Amazon S3** for storing the generated workspace artifacts, project files, and the test report documents.
+- **Frontend Hosting:** Host the web frontend statically on **Amazon S3** combined with **Amazon CloudFront** for distribution.
+- **API Gateway:** Use **Amazon API Gateway** to expose REST endpoints or WebSockets for the frontend to interact with the Lambda functions and step functions.
+
+## Cost & Free Tier Guardrails
+
+- The architecture is designed to remain entirely within the **AWS Free Tier** limits for personal testing and portfolios.
+- **Serverless-only:** Avoid costly provisioned infrastructure such as EC2 instances, RDS databases, EKS, ECS, or NAT Gateways to prevent unexpected bills.
+- **Secrets Management:** Securely retrieve Gemini API keys using **AWS Secrets Manager** or Systems Manager Parameter Store.
 
 ---
 
 # Guiding Principle
 
-The objective is NOT:
-
-```text
-Generate large software projects with one prompt
-```
-
-The objective IS:
-
-```text
-Use multiple specialized agents
-+
-Shared state
-+
-Tool usage
-+
-Feedback loops
-+
-Execution-based validation
-```
-
-to simulate a software development team and demonstrate modern agentic AI engineering concepts.
+The objective is to demonstrate a fully functional, self-correcting agentic coding team that is easily accessible via the web and deployable on production cloud infrastructure.

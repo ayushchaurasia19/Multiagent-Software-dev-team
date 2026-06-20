@@ -1,4 +1,5 @@
-from langchain_google_genai import ChatGoogleGenerativeAI
+import os
+from langchain_groq import ChatGroq  # type: ignore
 from langchain_core.messages import SystemMessage, HumanMessage
 import json
 
@@ -7,8 +8,16 @@ def plan_task(state: dict):
     print("[PLANNER AGENT] is analyzing requirements...")
     print(f"   Requirements: {state.get('requirements', '')[:60]}...")
     print("="*50)
+    API_KEY = os.getenv("GROQ_API_KEY")
+
     # Using the single underlying model
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite", temperature=0, max_retries=10)
+    llm = ChatGroq(
+        model="llama-3.3-70b-versatile",
+        api_key=API_KEY,
+        temperature=0,
+        max_retries=5,
+        timeout=60,
+    )
     
     requirements = state.get("requirements", "")
     
