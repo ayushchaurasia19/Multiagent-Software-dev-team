@@ -3,7 +3,7 @@ import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from "reac
 import { AGENT_COLOR } from "../lib/devteam-data";
 import { ArrowLeft, ChevronDown, ChevronRight, File, Folder, FolderOpen, Search, X } from "lucide-react";
 
-const API_BASE = "http://127.0.0.1:8000/api";
+const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
 
 // ── Lightweight syntax highlighter ──
 const KEYWORDS = {

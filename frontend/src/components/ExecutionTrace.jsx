@@ -39,7 +39,7 @@ export default function ExecutionTrace({ events }) {
     const result = events.filter(
       (e) =>
         (filter === "all" || e.kind === filter) &&
-        (!q || e.title.toLowerCase().includes(q) || e.body.toLowerCase().includes(q) || e.agent.includes(q))
+        (!q || e.title?.toLowerCase().includes(q) || e.body?.toLowerCase().includes(q) || e.agent?.toLowerCase().includes(q))
     );
     return result.reverse();
   }, [events, query, filter]);

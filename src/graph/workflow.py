@@ -7,6 +7,7 @@ from src.agents.reviewer import review_code
 from src.agents.tester import run_tester_agent
 from src.tools.file_tools import write_code_to_disk
 from src.tools.exec_tools import run_pytest_suite
+from src.tools.aws_tools import write_code_to_s3, run_pytest_suite_s3
 from langchain_core.messages import ToolMessage
 from langgraph.checkpoint.memory import MemorySaver
 import json
@@ -31,7 +32,9 @@ def _execute_tools_generic(messages, label):
     
     TOOL_MAP = {
         "write_code_to_disk": write_code_to_disk,
-        "run_pytest_suite": run_pytest_suite
+        "run_pytest_suite": run_pytest_suite,
+        "write_code_to_s3": write_code_to_s3,
+        "run_pytest_suite_s3": run_pytest_suite_s3
     }
     
     for call in last_msg.tool_calls:

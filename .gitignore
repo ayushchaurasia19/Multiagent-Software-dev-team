@@ -29,4 +29,7 @@ Thumbs.db
 # Test caches
 .pytest_cache/
 
+# AWS SAM generated files
+.aws-sam/
+
 plan-phases.md

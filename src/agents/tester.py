@@ -2,6 +2,7 @@ from langchain_groq import ChatGroq  # type: ignore
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, BaseMessage
 from src.tools.file_tools import write_code_to_disk
 from src.tools.exec_tools import run_pytest_suite
+from src.tools.aws_tools import write_code_to_s3, run_pytest_suite_s3
 import os
 
 def run_tester_agent(state: dict):
@@ -18,7 +19,11 @@ def run_tester_agent(state: dict):
         max_retries=5,
         timeout=60,
     )
-    llm_with_tools = llm.bind_tools([write_code_to_disk, run_pytest_suite])
+    is_aws = os.getenv("DEPLOYMENT_ENV") == "AWS"
+    file_tool = write_code_to_s3 if is_aws else write_code_to_disk
+    exec_tool = run_pytest_suite_s3 if is_aws else run_pytest_suite
+
+    llm_with_tools = llm.bind_tools([file_tool, exec_tool])
     
     requirements = state.get("requirements", "")
     tasks = state.get("backend_tasks", [])
@@ -44,19 +49,19 @@ def run_tester_agent(state: dict):
     if not backend_code.strip():
         backend_code = "(No backend code files found in workspace)"
 
-    system_prompt = """You are a QA/Tester Agent. Your focus is strictly on verifying the Backend Agent's code.
+    system_prompt = f"""You are a QA/Tester Agent. Your focus is strictly on verifying the Backend Agent's code.
     Your job is to read the requirements, backend tasks, the generated backend code, and:
-    1. Write a complete pytest test suite in `tests/test_api.py` (or corresponding test files for other backend files on disk) using the `write_code_to_disk` tool. Ensure the tests cover success paths, failure paths, and edge cases.
-    2. Run the test suite using the `run_pytest_suite` tool. You must analyze the execution logs to verify code correctness.
-    3. Write a testing summary report to `tests/test_report.md` using the `write_code_to_disk` tool, describing your test coverage and the execution results.
+    1. Write a complete pytest test suite in `tests/test_api.py` (or corresponding test files for other backend files on disk) using the `{file_tool.name}` tool. Ensure the tests cover success paths, failure paths, and edge cases.
+    2. Run the test suite using the `{exec_tool.name}` tool. You must analyze the execution logs to verify code correctness.
+    3. Write a testing summary report to `tests/test_report.md` using the `{file_tool.name}` tool, describing your test coverage and the execution results.
     4. Once all files are written and tests have been executed, output a final JSON block summarizing your findings. The JSON must have the following keys:
     - "status": either "passed" or "failed"
     - "issues": a list of specific issues, bugs, tracebacks, or missing test coverage found in the backend code, each prefixed with "[BACKEND]" (e.g., "[BACKEND] Test execution failed with AssertionError on /register endpoint"). If no issues are found, this list must be empty.
     - "summary": a brief text summary of the verification.
 
     CRITICAL INSTRUCTIONS:
-    - You MUST use the `write_code_to_disk` tool to write the test files BEFORE executing them.
-    - You MUST use the `run_pytest_suite` tool to run the tests and view the real runtime errors before providing the JSON summary.
+    - You MUST use the `{file_tool.name}` tool to write the test files BEFORE executing them.
+    - You MUST use the `{exec_tool.name}` tool to run the tests and view the real runtime errors before providing the JSON summary.
     - DO NOT provide the JSON summary until you have executed both tools and received their results.
     - Only output the final JSON block when you have completed all tool calls and written all files.
     - Do NOT wrap the final JSON block in markdown backticks (e.g. ```json) in your final text response. Just output the raw JSON string.

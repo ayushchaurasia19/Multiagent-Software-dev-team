@@ -2,6 +2,7 @@ import os
 from langchain_groq import ChatGroq  # type: ignore
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, BaseMessage
 from src.tools.file_tools import write_code_to_disk
+from src.tools.aws_tools import write_code_to_s3
 
 def write_frontend_code(state: dict):
     print("\n" + "="*50)
@@ -17,14 +18,17 @@ def write_frontend_code(state: dict):
         max_retries=5,
         timeout=60,
     )
-    llm_with_tools = llm.bind_tools([write_code_to_disk])
+    is_aws = os.getenv("DEPLOYMENT_ENV") == "AWS"
+    file_tool = write_code_to_s3 if is_aws else write_code_to_disk
+
+    llm_with_tools = llm.bind_tools([file_tool])
     
     tasks = state.get("frontend_tasks", [])
     agent_messages = state.get("frontend_messages", [])
     
-    system_prompt = """You are a Frontend Developer Agent. Focus on UI/UX, responsive design, and consuming APIs.
+    system_prompt = f"""You are a Frontend Developer Agent. Focus on UI/UX, responsive design, and consuming APIs.
 Your job is to read the requirements and the task list, and implement the project files.
-CRITICAL INSTRUCTION: You MUST use the `write_code_to_disk` tool to create the files. 
+CRITICAL INSTRUCTION: You MUST use the `{file_tool.name}` tool to create the files. 
 Do NOT output code blocks in your text response. You MUST call the tool to write the code.
 Write one file at a time. After calling the tool, wait for the success message before calling it again.
 If you are in a revision cycle, ONLY write code if the reviewer feedback explicitly contains [FRONTEND] items. If the feedback is entirely for [BACKEND], do not use tools, just return a text summary saying no frontend changes are needed.

@@ -18,6 +18,7 @@ Traditional AI coding assistants often operate as single, sequential agents that
 - **Automated Peer Review**: A dedicated Reviewer agent evaluates the combined workspace, identifying issues and dispatching targeted feedback to the responsible agents.
 - **Self-Healing Revision Cycles**: Agents autonomously rewrite and correct their code based on targeted feedback until the Reviewer approves the implementation or a maximum revision limit is reached.
 - **File System Integration**: Agents natively write code to disk within an isolated workspace directory using strict tool binding.
+- **AWS Cloud Integration**: Natively supports AWS Lambda deployments by isolating generated artifacts to the `/tmp/workspace` directory, executing automated tests (via `pytest`) within Lambda execution environments, and persisting generated artifacts to Amazon S3.
 
 ## System Architecture
 
@@ -58,12 +59,20 @@ graph TD
 ### State Management
 The system utilizes a central `AgentState` dictionary using LangGraph `Annotated` reducers to ensure thread-safe message logging across parallel nodes. Communication history is strictly isolated (`backend_messages` and `frontend_messages`) to prevent LLM hallucination and ensure clear context boundaries.
 
+### AWS Integration
+The system is fully equipped to execute autonomously on AWS Lambda. When `DEPLOYMENT_ENV` is set to `AWS`:
+- **Serverless File Writing:** Agents automatically switch their file system bindings to use the `write_code_to_s3` tool, adapting paths to the `/tmp/workspace` directory which is permitted within serverless constraints.
+- **Persistent Artifact Backup:** Every generated file is simultaneously pushed to an Amazon S3 bucket, ensuring the codebase persists outside of the ephemeral Lambda runtime.
+- **Serverless Code Execution:** The Tester Agent executes automated testing loops natively within the AWS environment via `run_pytest_suite_s3`, surfacing robust stdout/stderr logs from the remote runtime for automated analysis.
+For a detailed look at the AWS components, see [AWS_FEATURES.md](./AWS_FEATURES.md).
+
 ## Technology Stack
 
 - **Python 3.12+**: Core programming language.
 - **LangGraph**: Framework for orchestrating the multi-agent state machine and cyclic workflows.
 - **LangChain Core**: Standardized interfaces for messages, tools, and LLM interactions.
 - **LangChain Groq**: Integration for Groq's fast inference models (currently utilizing `llama-3.3-70b-versatile`).
+- **AWS Boto3**: Enables programmatic interaction with Amazon S3 for cloud object storage and artifact persistence.
 - **Pytest**: Automated testing framework for unit and integration verification.
 - **FastAPI**: Backend server to stream LangGraph execution events and provide workspace access.
 - **React & Vite**: Modern frontend dashboard for real-time visualization of agent execution and workspace inspection.
@@ -74,7 +83,10 @@ The system utilizes a central `AgentState` dictionary using LangGraph `Annotated
 .
 ├── AGENTS_DOCUMENTATION.md    # Detailed documentation of agent behavior
 ├── AGENT_STATE_DOCS.md        # State schema documentation
+├── AWS_FEATURES.md            # Detailed documentation of serverless integrations
 ├── plan-phases.md             # Project milestones and roadmap
+├── template.yaml              # AWS SAM Infrastructure-as-Code template
+├── samconfig.toml             # AWS SAM deployment configuration
 ├── frontend/                  # React + Vite dashboard UI
 ├── src/
 │   ├── agents/                # LLM Agent definitions
@@ -86,7 +98,9 @@ The system utilizes a central `AgentState` dictionary using LangGraph `Annotated
 │   ├── graph/                 # LangGraph configuration
 │   │   └── workflow.py        # DAG routing and edge definitions
 │   ├── tools/                 # Agent tools
-│   │   └── file_tools.py      # File system operations (write_code_to_disk)
+│   │   ├── aws_tools.py       # S3 and AWS Lambda workspace interactions
+│   │   ├── exec_tools.py      # Local code execution and testing
+│   │   └── file_tools.py      # Local file system operations (write_code_to_disk)
 │   ├── main.py                # Application CLI entry point
 │   ├── server.py              # FastAPI server for dashboard streaming
 │   └── state.py               # AgentState TypedDict definition
@@ -125,6 +139,9 @@ The system relies on Groq's API for fast inference. You must configure your API 
 Create a `.env` file in the root directory:
 ```env
 GROQ_API_KEY=your_groq_api_key_here
+DEPLOYMENT_ENV=local # Set to 'AWS' to trigger AWS Lambda/S3 tools
+S3_WORKSPACE_BUCKET=your-target-s3-bucket-name
+AWS_REGION=us-east-1 # Or your preferred AWS region
 ```
 
 The application uses `python-dotenv` to automatically load these variables at runtime.

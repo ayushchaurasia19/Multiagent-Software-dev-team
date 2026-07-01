@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Multi-Agent DevTeam Serverless Application
+  Deploys the LangGraph multi-agent execution pipeline to AWS Lambda with S3 storage.
+
+Resources:
+  # 1. Secure S3 Bucket to hold all generated workspace files
+  WorkspaceBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # 2. FastAPI Serverless Lambda Function
+  DevTeamApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: run.sh
+      Layers:
+        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:23
+      Runtime: python3.12
+      MemorySize: 1024
+      Timeout: 900  # 15 minutes (Max timeout for AWS Lambda)
+      Architectures:
+        - x86_64
+      
+      # IAM Permissions
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref WorkspaceBucket
+        # Give permission to decrypt/read the Groq API Key from SSM Parameter Store
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+              Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/GROQ_API_KEY'
+      
+      # Environment Variables
+      Environment:
+        Variables:
+          DEPLOYMENT_ENV: AWS
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
+          S3_WORKSPACE_BUCKET: !Ref WorkspaceBucket
+          GROQ_API_KEY: '{{resolve:ssm:GROQ_API_KEY}}'
+          AWS_LWA_INVOKE_MODE: RESPONSE_STREAM
+          
+      # Expose as a Function URL (Bypasses API Gateway 30-second timeouts)
+      FunctionUrlConfig:
+        AuthType: NONE  # Open API, update if you want to add IAM authentication
+        Cors:
+          AllowOrigins:
+            - "*"
+          AllowMethods:
+            - "*"
+          AllowHeaders:
+            - "*"
+          MaxAge: 3600
+        # Crucial for Server-Sent Events (SSE) Streaming
+        InvokeMode: RESPONSE_STREAM
+
+Outputs:
+  ApiEndpointUrl:
+    Description: "API Endpoint URL for the DevTeam Server (Paste this into your React frontend `.env`)"
+    Value: !GetAtt DevTeamApiFunctionUrl.FunctionUrl
+  WorkspaceBucketName:
+    Description: "The S3 Bucket Name holding the generated workspace files"
+    Value: !Ref WorkspaceBucket

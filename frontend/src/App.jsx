@@ -12,7 +12,7 @@ import WorkspaceView from "./components/WorkspaceView";
 import { AGENTS, EDGES } from "./lib/devteam-data";
 import "./index.css";
 
-const API_BASE = "http://127.0.0.1:8000/api";
+const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
 
 // Map LangGraph node names → our agent ids
 const NODE_TO_AGENT = {
@@ -35,26 +35,12 @@ function LaunchScreen({ onStart }) {
   const workDir = "/home/ayush-chaurasia/Multi-agent-Project/workspace";
   const canStart = prompt.trim().length > 0;
 
-  const handleStart = async () => {
+  const handleStart = () => {
     if (!canStart || launching) return;
     setError("");
     setLaunching(true);
-    try {
-      const res = await fetch(`${API_BASE}/run`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requirements: prompt.trim() }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.detail || `HTTP ${res.status}`);
-      }
-      const { thread_id } = await res.json();
-      onStart({ prompt: prompt.trim(), workDir: workDir.trim(), threadId: thread_id });
-    } catch (e) {
-      setError(e.message);
-      setLaunching(false);
-    }
+    // Since we merged /run and /stream into a single GET endpoint, we just pass the prompt directly to the Dashboard.
+    onStart({ prompt: prompt.trim(), workDir: workDir.trim(), threadId: null });
   };
 
   const handleKey = (e) => {
@@ -186,13 +172,17 @@ function Dashboard({ session, onOpenFile }) {
     return () => clearInterval(id);
   }, [running]);
 
-  // ── SSE stream from /api/stream ──
+  // ── SSE stream from /api/run_stream ──
   useEffect(() => {
     let es;
     let closed = false;
 
     const connect = () => {
-      es = new EventSource(`${API_BASE}/stream`);
+      // Connect directly to the streaming endpoint, passing the prompt as a query param
+      const url = new URL(`${API_BASE}/run_stream`);
+      url.searchParams.append("requirements", session.prompt);
+      
+      es = new EventSource(url.toString());
 
       es.onmessage = (e) => {
         let msg;
@@ -227,19 +217,20 @@ function Dashboard({ session, onOpenFile }) {
           
           if (outState.messages && Array.isArray(outState.messages)) {
             const newMessages = outState.messages.map((str, idx) => {
+               const bodyText = typeof str === "string" ? str : (typeof str?.content === "string" ? str.content : JSON.stringify(str));
                let from = agentId || "system";
-               if (str.toLowerCase().includes("reviewer")) from = "reviewer";
-               else if (str.toLowerCase().includes("backend")) from = "backend";
-               else if (str.toLowerCase().includes("frontend")) from = "frontend";
-               else if (str.toLowerCase().includes("tester")) from = "tester";
-               else if (str.toLowerCase().includes("planner")) from = "planner";
+               if (bodyText.toLowerCase().includes("reviewer")) from = "reviewer";
+               else if (bodyText.toLowerCase().includes("backend")) from = "backend";
+               else if (bodyText.toLowerCase().includes("frontend")) from = "frontend";
+               else if (bodyText.toLowerCase().includes("tester")) from = "tester";
+               else if (bodyText.toLowerCase().includes("planner")) from = "planner";
 
                return {
                  id: "msg_" + Date.now() + "_" + idx,
                  from,
                  to: "team",
                  timestamp: new Date().toLocaleTimeString(),
-                 body: str
+                 body: bodyText
                };
             });
             setMessages(prev => [...prev, ...newMessages]);
@@ -305,15 +296,18 @@ function Dashboard({ session, onOpenFile }) {
 
       es.onerror = () => {
         if (!closed) {
-          setStatus("reconnecting…");
-          setTimeout(connect, 2000);
+          setStatus("connection lost, reconnecting...");
+          es.close();
+          // We won't auto-reconnect for run_stream because it restarts the workflow.
+          setStatus("error");
+          addTrace("error", "system", "Network Error", "Lost connection to the streaming server.");
         }
       };
     };
 
     connect();
     return () => { closed = true; es?.close(); };
-  }, []);
+  }, [session.prompt]);
 
   // ── Poll workspace files every 3s ──
   useEffect(() => {
@@ -322,7 +316,7 @@ function Dashboard({ session, onOpenFile }) {
         const res = await fetch(`${API_BASE}/workspace`);
         if (!res.ok) return;
         const { files: tree } = await res.json();
-        setFiles(tree);
+        setFiles(tree || []);
       } catch { /* backend not ready yet */ }
     };
     poll();
@@ -333,7 +327,7 @@ function Dashboard({ session, onOpenFile }) {
   const addTrace = (kind, agent, title, body) => {
     const id = `t${++traceIdRef.current}`;
     const timestamp = new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit", fractionalSecondDigits: 3 });
-    setTrace(prev => [...prev, { id, timestamp, agent, kind, title, body: body ?? "" }]);
+    setTrace(prev => [...prev, { id, timestamp, agent: agent || "system", kind, title, body: String(body ?? "") }]);
   };
 
   const onRetry = (agentId) => {
