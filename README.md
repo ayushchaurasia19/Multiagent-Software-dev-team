@@ -1,28 +1,28 @@
 # Multi-Agent Software Development Team
 
-## Project Overview
+An autonomous, AI-driven framework leveraging LangGraph and LLMs to simulate a professional software engineering team. It automates the software development lifecycle from planning to code generation and peer review.
 
-The Multi-Agent Software Development Team is an autonomous, AI-driven framework that simulates a professional software engineering team. By leveraging LangGraph and specialized Large Language Models (LLMs), the system automates the software development lifecycle from requirements planning to code generation, parallel execution, and automated code review.
+**Cloud & Container Technologies Used:**
 
-The framework decomposes user requirements into discrete tasks, delegates them to specialized Frontend and Backend agents operating in parallel, and ensures code quality via a dedicated Reviewer agent that enforces a rigorous revision cycle.
+### AWS Services
+- **AWS Lambda**: Used for serverless code execution. Its purpose is to run the multi-agent system and the generated codebase without provisioning or managing servers, enabling a scalable and ephemeral environment.
+- **Amazon S3**: Used for persistent artifact storage. Its purpose is to maintain a durable, real-time backup of the generated codebase, mitigating the ephemeral nature of Lambda's `/tmp` directory.
+- **AWS SAM (Serverless Application Model)**: Used for Infrastructure as Code (IaC). Its purpose is to define, provision, and deploy the required AWS resources (Lambda, S3, API Gateway) seamlessly using the included templates.
 
-## Problem Statement
-
-Traditional AI coding assistants often operate as single, sequential agents that struggle to maintain context over large codebases or manage the separation of concerns between different technical domains (e.g., frontend UX vs. backend APIs). Sequential generation also leads to slower execution times and architectural coupling. This project solves these issues by introducing an orchestrated, multi-agent state machine that enforces parallel execution, domain specialization, and strict quality assurance through automated peer review.
+### Containerization
+- **Docker**
+- **Docker Compose**
 
 ## Features
 
-- **Autonomous Planning**: Dynamically decomposes high-level user requirements into distinct frontend and backend task lists.
-- **Parallel Agent Execution**: Frontend and Backend developer agents operate concurrently, significantly reducing code generation time and isolating domain logic.
-- **Domain Specialization**: Agents use tailored system prompts to focus strictly on their area of expertise (e.g., UI/UX vs. databases/performance).
-- **Automated Peer Review**: A dedicated Reviewer agent evaluates the combined workspace, identifying issues and dispatching targeted feedback to the responsible agents.
-- **Self-Healing Revision Cycles**: Agents autonomously rewrite and correct their code based on targeted feedback until the Reviewer approves the implementation or a maximum revision limit is reached.
-- **File System Integration**: Agents natively write code to disk within an isolated workspace directory using strict tool binding.
-- **AWS Cloud Integration**: Natively supports AWS Lambda deployments by isolating generated artifacts to the `/tmp/workspace` directory, executing automated tests (via `pytest`) within Lambda execution environments, and persisting generated artifacts to Amazon S3.
+- **Autonomous Planning**: Decomposes user requirements into frontend and backend tasks.
+- **Parallel Agent Execution**: Frontend and Backend agents operate concurrently to reduce execution time.
+- **Automated Peer Review**: A Reviewer agent evaluates the workspace and dispatches targeted feedback.
+- **Self-Healing Revisions**: Agents autonomously rewrite code based on feedback.
+- **AWS Cloud Integration**: Natively supports AWS Lambda deployments, persisting artifacts to Amazon S3. See [AWS_FEATURES.md](./AWS_FEATURES.md) for details.
+- **Docker Support**: Easy local orchestration for frontend and backend via `docker-compose`.
 
 ## System Architecture
-
-The core of the system is a directed acyclic graph (DAG) built with **LangGraph**. The workflow enforces state synchronization and parallel fan-out/fan-in routing.
 
 ```mermaid
 graph TD
@@ -56,16 +56,6 @@ graph TD
     R -->|Approved| END
 ```
 
-### State Management
-The system utilizes a central `AgentState` dictionary using LangGraph `Annotated` reducers to ensure thread-safe message logging across parallel nodes. Communication history is strictly isolated (`backend_messages` and `frontend_messages`) to prevent LLM hallucination and ensure clear context boundaries.
-
-### AWS Integration
-The system is fully equipped to execute autonomously on AWS Lambda. When `DEPLOYMENT_ENV` is set to `AWS`:
-- **Serverless File Writing:** Agents automatically switch their file system bindings to use the `write_code_to_s3` tool, adapting paths to the `/tmp/workspace` directory which is permitted within serverless constraints.
-- **Persistent Artifact Backup:** Every generated file is simultaneously pushed to an Amazon S3 bucket, ensuring the codebase persists outside of the ephemeral Lambda runtime.
-- **Serverless Code Execution:** The Tester Agent executes automated testing loops natively within the AWS environment via `run_pytest_suite_s3`, surfacing robust stdout/stderr logs from the remote runtime for automated analysis.
-For a detailed look at the AWS components, see [AWS_FEATURES.md](./AWS_FEATURES.md).
-
 ## Technology Stack
 
 - **Python 3.12+**: Core programming language.
@@ -81,128 +71,54 @@ For a detailed look at the AWS components, see [AWS_FEATURES.md](./AWS_FEATURES.
 
 ```text
 .
-├── AGENTS_DOCUMENTATION.md    # Detailed documentation of agent behavior
-├── AGENT_STATE_DOCS.md        # State schema documentation
-├── AWS_FEATURES.md            # Detailed documentation of serverless integrations
-├── plan-phases.md             # Project milestones and roadmap
-├── template.yaml              # AWS SAM Infrastructure-as-Code template
-├── samconfig.toml             # AWS SAM deployment configuration
 ├── frontend/                  # React + Vite dashboard UI
 ├── src/
-│   ├── agents/                # LLM Agent definitions
-│   │   ├── backend_agent.py   # Backend code generation
-│   │   ├── frontend_agent.py  # Frontend code generation
-│   │   ├── planner.py         # Task decomposition
-│   │   ├── tester.py          # Automated QA and unit testing
-│   │   └── reviewer.py        # Code evaluation and feedback
-│   ├── graph/                 # LangGraph configuration
-│   │   └── workflow.py        # DAG routing and edge definitions
-│   ├── tools/                 # Agent tools
-│   │   ├── aws_tools.py       # S3 and AWS Lambda workspace interactions
-│   │   ├── exec_tools.py      # Local code execution and testing
-│   │   └── file_tools.py      # Local file system operations (write_code_to_disk)
-│   ├── main.py                # Application CLI entry point
-│   ├── server.py              # FastAPI server for dashboard streaming
-│   └── state.py               # AgentState TypedDict definition
-├── tests/                     # Test suite
-│   ├── test_agents.py         # Unit tests for individual agents
-│   ├── test_tester.py         # Unit tests for the Tester Agent
-│   ├── test_integration.py    # End-to-end parallel workflow tests
-│   └── test_workflow.py       # LangGraph routing logic tests
+│   ├── agents/                # LLM Agent definitions (planner, frontend, backend, tester, reviewer)
+│   ├── graph/                 # LangGraph routing and configuration
+│   ├── tools/                 # Agent tools (aws_tools, exec_tools, file_tools)
+│   └── server.py              # FastAPI server for dashboard streaming
+├── tests/                     # Automated test suite
 └── workspace/                 # Target directory for generated code
 ```
 
-## Installation Instructions
+## AWS Integration
 
-1. **Clone the repository:**
-   ```bash
-   git clone <repository_url>
-   cd Multi-agent-Project
-   ```
+When `DEPLOYMENT_ENV` is set to `AWS`, the system seamlessly adapts to serverless constraints. It swaps local file writes with `write_code_to_s3` to dual-write artifacts to `/tmp/workspace` (for execution) and Amazon S3 (for persistence), and natively runs Pytest suites within the Lambda execution environment. For full details, see [AWS_FEATURES.md](./AWS_FEATURES.md).
 
-2. **Create and activate a virtual environment:**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows use: venv\Scripts\activate
-   ```
+## Running the Application
 
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-   *(Note: Ensure `langchain-google-genai`, `langgraph`, and `pytest` are installed).*
-
-## Configuration and Environment Variables
-
-The system relies on Groq's API for fast inference. You must configure your API key before running the workflow.
-
-Create a `.env` file in the root directory:
+Before running, ensure you have your environment variables set in a `.env` file at the root:
 ```env
 GROQ_API_KEY=your_groq_api_key_here
-DEPLOYMENT_ENV=local # Set to 'AWS' to trigger AWS Lambda/S3 tools
-S3_WORKSPACE_BUCKET=your-target-s3-bucket-name
-AWS_REGION=us-east-1 # Or your preferred AWS region
+DEPLOYMENT_ENV=local # Set to 'AWS' for cloud features
+S3_WORKSPACE_BUCKET=your-bucket-name
 ```
 
-The application uses `python-dotenv` to automatically load these variables at runtime.
+### Using Docker (Recommended)
+You can quickly bring up the entire stack using Docker Compose:
+```bash
+docker compose up --build
+```
+- **Frontend Dashboard:** `http://localhost:80`
+- **Backend API:** `http://localhost:8080`
 
-## Usage Guide
+### Running Locally (Without Docker)
 
-The project now includes a rich, real-time frontend dashboard to monitor the execution of the multi-agent system.
-
-### Running the Dashboard (Recommended)
-
-1. **Start the FastAPI backend server:**
+1. **Install dependencies:**
    ```bash
-   fastapi run src/server.py --port 8000
-   ```
-2. **Start the React frontend (in a separate terminal):**
-   ```bash
+   python -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   
    cd frontend
    npm install
-   npm run dev
    ```
-3. Open your browser to the local URL provided by Vite (usually `http://localhost:5173`) to submit requirements and watch the agents work in real-time.
 
-### Running via CLI
-To execute the multi-agent workflow via the command line, simply run the main entry point:
-
+2. **Start the servers:**
+   - **Backend**: `fastapi run src/server.py --port 8000` (from root)
+   - **Frontend**: `npm run dev` (from `frontend/`)
+   
+Alternatively, run the agent workflow directly via CLI:
 ```bash
 python src/main.py
 ```
-
-The default configuration in `src/main.py` is set to generate a library management web app with a FastAPI backend and an HTML frontend. You can modify the `"requirements"` string inside `main.py` to prompt the agents to build any software you desire.
-
-All generated code will be automatically written to the `./workspace/` directory.
-
-## Testing Instructions
-
-The project maintains a rigorous test suite covering agent behavior, graph routing, and end-to-end integration (including mocked parallel execution).
-
-To run the test suite:
-```bash
-pytest
-```
-
-To run tests with verbose output and immediate traceback:
-```bash
-pytest -v --tb=short
-```
-
-## Workflow Execution Example
-
-**Input Requirement:**
-> "Build a simple library management web app. Create a backend API with FastAPI (api.py) and a frontend HTML file (index.html) that fetches from the API."
-
-**System Output Log:**
-1. **[PLANNER]** parses requirements and generates separated task lists.
-2. **[BACKEND]** & **[FRONTEND]** wake up in parallel.
-3. Backend triggers `write_code_to_disk` to create `workspace/api.py`.
-4. Frontend triggers `write_code_to_disk` to create `workspace/index.html`.
-5. Backend finishes, triggering the **[TESTER]** agent.
-6. Tester triggers `write_code_to_disk` to generate `workspace/tests/test_api.py` and `workspace/tests/test_report.md`.
-7. Tester and Frontend reach the synchronization barrier (`join_node`).
-8. **[REVIEWER]** reads the workspace and the `test_report.md`. If issues are found, it outputs:
-   `"[BACKEND] Missing CORS middleware in FastAPI app."`
-9. The revision is dispatched. Because the feedback is tagged `[BACKEND]`, the frontend agent sleeps, and the backend agent automatically applies the fix.
-10. The system terminates when the Reviewer approves the code.
